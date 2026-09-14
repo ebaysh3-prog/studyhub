@@ -15,9 +15,16 @@ try {
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
+
+  // list what the bare-mux package actually contains
+  const bmxFiles = fs.readdirSync(bmxMod.baremuxPath, { recursive: true })
+    .map(f => String(f).replace(/\\/g, '/'))
+    .filter(f => f.endsWith('.mjs') || f.endsWith('.cjs'));
+  console.log('baremux files:', bmxFiles);
+  app.get('/bmx-files', (req, res) => res.json(bmxFiles));
+
   app.use(express.static(path.join(__dirname, 'static')));
 
-  // serve the service worker at the root so it can control the whole site
   app.get('/sw.js', (req, res) => {
     res.setHeader('Service-Worker-Allowed', '/');
     res.setHeader('Content-Type', 'application/javascript');
