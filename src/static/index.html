@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StudyHub — Your Guide to Academic Success</title>
-<script src="/bmx/bare.cjs"></script>
 <script src="/uv/uv.bundle.js"></script>
 <script src="/uv/uv.config.js"></script>
 <style>
@@ -126,27 +125,23 @@ let uvReady = null;
 function ensureUV() {
   if (!uvReady) {
     uvReady = (async () => {
-      // ask the server what files bare-mux actually has
-      const files = await fetch('/bmx-files').then(r => r.json());
-      console.log('bmx files:', files);
+      const info = await fetch('/bmx-urls').then(r => r.json());
+      console.log('bmx info:', info);
 
-      const clientFile = files.find(f => f === 'worker.mjs' || f === 'bare.mjs')
-        || files.find(f => f.endsWith('.mjs'));
-      const transportFile = files.find(f => f.includes('epoxy') && f.endsWith('.mjs'));
-
-      // find the connection class no matter what it's called
-      let ConnClass = window.BareMuxConnection
-        || (window.BareMux && window.BareMux.BareMuxConnection)
-        || (typeof window.BareMux === 'function' ? window.BareMux : null);
-
-      if (!ConnClass) {
-        const mod = await import('/bmx/' + clientFile);
-        ConnClass = mod.BareMuxConnection || mod.default?.BareMuxConnection;
-        if (!ConnClass) throw new Error('No BareMuxConnection found. Files: ' + files.join(', '));
+      if (!info.client || !info.transport) {
+        throw new Error('Server could not find files. List: ' + info.files.join(', '));
       }
 
-      const conn = new ConnClass('/bmx/' + clientFile);
-      await conn.setTransport('/bmx/' + transportFile, [{
+      const mod = await import(info.client);
+      console.log('client exports:', Object.keys(mod));
+
+      const Conn = mod.BareMuxConnection || mod.default?.BareMuxConnection || mod.default;
+      if (typeof Conn !== 'function') {
+        throw new Error('No connection class. Exports: ' + Object.keys(mod).join(', '));
+      }
+
+      const conn = new Conn(info.client);
+      await conn.setTransport(info.transport, [{
         wisp: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'
       }]);
 
