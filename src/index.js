@@ -5,6 +5,7 @@ try {
   const bmxMod = await import('@mercuryworkshop/bare-mux/node');
   const wispMod = await import('@mercuryworkshop/wisp-js');
   const path = (await import('node:path')).default;
+  const fs = (await import('node:fs')).default;
   const { fileURLToPath } = await import('node:url');
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,7 +15,14 @@ try {
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
-  app.use(express.static(path.join(__dirname,  'static')));
+  app.use(express.static(path.join(__dirname, 'static')));
+
+  // serve the service worker at the root so it can control the whole site
+  app.get('/sw.js', (req, res) => {
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.setHeader('Content-Type', 'application/javascript');
+    res.sendFile(path.join(uvMod.uvPath, 'uv.sw.js'));
+  });
 
   server.on('upgrade', (req, socket, head) => {
     wispMod.server.routeRequest(req, socket, head);
