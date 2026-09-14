@@ -97,27 +97,13 @@ function ensureUV() {
         throw new Error('No transport file. Epoxy files: ' + info.epoxyFiles.join(', '));
       }
 
-      // 1) try the global from bare.cjs script tag
-      let Conn = null;
-      const BM = window.BareMux;
-      if (BM) {
-        Conn = BM.BareMuxConnection || (BM.default && BM.default.BareMuxConnection) || BM.BareMuxConnection;
-        console.log('window.BareMux keys:', Object.keys(BM));
+      // bare.cjs script tag gives us the connection class directly
+      const BM = window.BareMux || window.bareMux;
+      if (!BM || typeof BM.BareMuxConnection !== 'function') {
+        throw new Error('BareMux global missing. Window keys: ' + Object.keys(window).filter(k => k.toLowerCase().includes('bare')).join(', '));
       }
 
-      // 2) fall back to the modern ESM file
-      if (typeof Conn !== 'function') {
-        const mod = await import('/bmx/index.js');
-        console.log('index.js exports:', Object.keys(mod));
-        Conn = mod.BareMuxConnection || (mod.default && mod.default.BareMuxConnection);
-      }
-
-      if (typeof Conn !== 'function') {
-        throw new Error('No connection class found. BareMux global: ' + JSON.stringify(BM ? Object.keys(BM) : 'missing'));
-      }
-
-      // bare.cjs works as the background worker script
-      const conn = new Conn('/bmx/bare.cjs');
+      const conn = new BM.BareMuxConnection('/bmx/bare.cjs');
       await conn.setTransport(info.transport, [{
         wisp: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'
       }]);
