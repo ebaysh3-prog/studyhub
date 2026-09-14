@@ -92,23 +92,78 @@ function ensureUV() {
     uvReady = (async () => {
       const info = await fetch('/bmx-urls').then(r => r.json());
       console.log('bmx info:', info);
+      if (!info.transport) throw new Error('No transport file: ' + JSON.stringify(info.epoxyFiles || info));
 
-      if (!info.transport) {
-        throw new Error('No transport file. Epoxy files: ' + info.epoxyFiles.join(', '));
-      }
+      // wipe any stale service workers from earlier attempts
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      } catch (e) {}
 
-      // bare.cjs script tag gives us the connection class directly
-      const BM = window.BareMux || window.bareMux;
-      if (!BM || typeof BM.BareMuxConnection !== 'function') {
-        throw new Error('BareMux global missing. Window keys: ' + Object.keys(window).filter(k => k.toLowerCase().includes('bare')).join(', '));
-      }
-
-      const conn = new BM.BareMuxConnection('/bmx/bare.cjs');
-      await conn.setTransport(info.transport, [{
+      const wispOpts = {
         wisp: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'
-      }]);
+      };
+      const workerPaths = ['/bmx/bare.cjs', '/bmx/index.js'];
+      const diag = [];
+      const BM = window.BareMux;
+      let conn = null;
 
-      await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      const tryArgs = async (inst) => {
+        try { await inst.setTransport(info.transport, wispOpts); return true; }
+        catch (e1) {
+          diag.push('setTransport(obj): ' + e1.message);
+          try { await inst.setTransport(info.transport, [wispOpts]); return true; }
+          catch (e2) { diag.push('setTransport(arr): ' + e2.message); return false; }
+        }
+      };
+
+      if (BM && typeof BM === 'object') {
+        for (const [k, v] of Object.entries(BM)) {
+          if (typeof v !== 'function') continue;
+          for (const wp of workerPaths) {
+            try {
+              const inst = new v(wp);
+              if (inst && typeof inst.setTransport === 'function') {
+                console.log('connection found via BareMux.' + k, wp);
+                if (await tryArgs(inst)) { conn = inst; break; }
+              }
+            } catch (e) { diag.push('new BareMux.' + k + '(' + wp + '): ' + e.message); }
+          }
+          if (conn) break;
+        }
+      } else if (typeof BM === 'function') {
+        for (const wp of workerPaths) {
+          try {
+            const inst = new BM(wp);
+            if (inst && typeof inst.setTransport === 'function' && await tryArgs(inst)) { conn = inst; break; }
+          } catch (e) { diag.push('new BareMux(' + wp + '): ' + e.message); }
+        }
+      }
+
+      // SetTransport-style fallback — sets the shared worker directly
+      if (!conn) {
+        const st = (BM && typeof BM === 'object' && (BM.SetTransport || BM.setTransport)) || window.SetTransport;
+        if (typeof st === 'function') {
+          try {
+            await st(info.transport, wispOpts);
+            console.log('SetTransport direct call OK');
+            conn = { setTransport: st };
+          } catch (e) { diag.push('SetTransport(): ' + e.message); }
+        }
+      }
+
+      if (!conn) {
+        const shape = BM
+          ? typeof BM + (typeof BM === 'object'
+              ? ' {' + Object.entries(BM).map(([k, v]) => k + ': ' + typeof v).join(', ') + '}'
+              : '')
+          : 'missing';
+        throw new Error('No working BareMux API. Shape: ' + shape + ' | Attempts: ' + diag.join(' | '));
+      }
+
+      await navigator.serviceWorker.register('/uv/uv.sw.js', { scope: '/' });
+      await navigator.serviceWorker.ready;
+      console.log('UV ready');
     })();
   }
   return uvReady;
