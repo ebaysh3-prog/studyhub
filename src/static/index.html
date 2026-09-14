@@ -94,21 +94,30 @@ function ensureUV() {
       console.log('bmx info:', info);
 
       if (!info.transport) {
-        throw new Error('No transport file found. Epoxy files: ' + info.epoxyFiles.join(', '));
+        throw new Error('No transport file. Epoxy files: ' + info.epoxyFiles.join(', '));
       }
 
-      let Conn = window.BareMux && (window.BareMux.BareMuxConnection || window.BareMux.default?.BareMuxConnection);
-
-      if (!Conn) {
-        const mod = await import(info.client);
-        console.log('client exports:', Object.keys(mod));
-        Conn = mod.BareMuxConnection || mod.default?.BareMuxConnection;
+      // 1) try the global from bare.cjs script tag
+      let Conn = null;
+      const BM = window.BareMux;
+      if (BM) {
+        Conn = BM.BareMuxConnection || (BM.default && BM.default.BareMuxConnection) || BM.BareMuxConnection;
+        console.log('window.BareMux keys:', Object.keys(BM));
       }
+
+      // 2) fall back to the modern ESM file
       if (typeof Conn !== 'function') {
-        throw new Error('BareMuxConnection not found anywhere');
+        const mod = await import('/bmx/index.js');
+        console.log('index.js exports:', Object.keys(mod));
+        Conn = mod.BareMuxConnection || (mod.default && mod.default.BareMuxConnection);
       }
 
-      const conn = new Conn(info.client);
+      if (typeof Conn !== 'function') {
+        throw new Error('No connection class found. BareMux global: ' + JSON.stringify(BM ? Object.keys(BM) : 'missing'));
+      }
+
+      // bare.cjs works as the background worker script
+      const conn = new Conn('/bmx/bare.cjs');
       await conn.setTransport(info.transport, [{
         wisp: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'
       }]);
