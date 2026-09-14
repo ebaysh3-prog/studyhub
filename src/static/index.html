@@ -126,29 +126,31 @@
 <footer>© 2025 StudyHub. Empowering students everywhere.</footer>
 
 <script>
-// UV initialisation — runs once on page load
-const uvReady = (async () => {
-  const conn = new BareMux.BareMuxConnection('/bmx/bare.mjs');
-  await conn.setTransport('/bmx/epoxy/index.mjs', [{
-    wisp: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'
-  }]);
-  await navigator.serviceWorker.register('/sw.js', {
-    scope: '/'
-  });
-})();
+let uvReady = null;
 
-uvReady.catch(err => {
-  alert('Proxy failed to start: ' + err.message);
-});
+function ensureUV() {
+  if (!uvReady) {
+    uvReady = (async () => {
+      const conn = new BareMux.BareMuxConnection('/bmx/bare.mjs');
+      await conn.setTransport('/bmx/epoxy/index.mjs', [{
+        wisp: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'
+      }]);
+      await navigator.serviceWorker.register('/sw.js', {
+        scope: '/'
+      });
+    })();
+  }
+  return uvReady;
+}
 
 function openP(url) {
-  uvReady.then(() => {
+  ensureUV().then(() => {
     if (!url.startsWith('http')) url = 'https://' + url;
     const encoded = __uv$config.encodeUrl(url);
     const proxied = __uv$config.prefix + encoded;
     document.getElementById('pf').src = proxied;
     document.getElementById('fw').style.display = 'block';
-  });
+  }).catch(err => alert('Proxy failed to start: ' + err.message));
 }
 
 function go() {
