@@ -8,7 +8,8 @@
   "dependencies": {
     "@titaniumnetwork-dev/ultraviolet": "^1.0.10",
     "@mercuryworkshop/bare-mux": "^1.0.0",
-        "@mercuryworkshop/wisp-js": "latest",
+    "@mercuryworkshop/epoxy-transport": "latest",
+    "@mercuryworkshop/wisp-js": "latest",
     "express": "^4.18.2"
   },
   "engines": {
