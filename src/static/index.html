@@ -137,12 +137,6 @@ uvReady.catch(err => {
   alert('Proxy failed to start: ' + err.message);
 });
 
-  // Register the UV service worker
-  await navigator.serviceWorker.register('/uv/uv.sw.js', {
-    scope: __uv$config.prefix
-  });
-})();
-
 function openP(url) {
   uvReady.then(() => {
     if (!url.startsWith('http')) url = 'https://' + url;
