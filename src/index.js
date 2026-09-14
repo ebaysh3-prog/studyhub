@@ -16,12 +16,24 @@ try {
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
 
-  // list what the bare-mux package actually contains
-  const bmxFiles = fs.readdirSync(bmxMod.baremuxPath, { recursive: true })
-    .map(f => String(f).replace(/\\/g, '/'))
-    .filter(f => f.endsWith('.mjs') || f.endsWith('.cjs'));
-  console.log('baremux files:', bmxFiles);
-  app.get('/bmx-files', (req, res) => res.json(bmxFiles));
+  // server picks the right files — browser never guesses
+  const all = fs.readdirSync(bmxMod.baremuxPath, { recursive: true })
+    .map(f => String(f).replace(/\\/g, '/'));
+  console.log('ALL baremux files:', all);
+
+  const client = all.find(f => f.endsWith('bare.mjs'))
+    || all.find(f => f.endsWith('worker.mjs'))
+    || all.find(f => f.endsWith('.mjs') && !f.includes('epoxy'));
+  const transport = all.find(f => f.includes('epoxy') && f.endsWith('.mjs'));
+  console.log('CHOSEN client:', client, '| transport:', transport);
+
+  app.get('/bmx-urls', (req, res) => {
+    res.json({
+      client: client ? '/bmx/' + client : null,
+      transport: transport ? '/bmx/' + transport : null,
+      files: all
+    });
+  });
 
   app.use(express.static(path.join(__dirname, 'static')));
 
