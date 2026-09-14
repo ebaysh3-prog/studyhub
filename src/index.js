@@ -3,6 +3,7 @@ try {
   const { createServer } = await import('node:http');
   const uvMod = await import('@titaniumnetwork-dev/ultraviolet');
   const bmxMod = await import('@mercuryworkshop/bare-mux/node');
+  const epoxyMod = await import('@mercuryworkshop/epoxy-transport/path');
   const wispMod = await import('@mercuryworkshop/wisp-js');
   const path = (await import('node:path')).default;
   const fs = (await import('node:fs')).default;
@@ -15,23 +16,20 @@ try {
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
+  app.use('/epoxy/', express.static(epoxyMod.epoxyPath));
 
-  // server picks the right files — browser never guesses
-  const all = fs.readdirSync(bmxMod.baremuxPath, { recursive: true })
+  // pick the epoxy transport file on the server — browser never guesses
+  const epoxyFiles = fs.readdirSync(epoxyMod.epoxyPath, { recursive: true })
     .map(f => String(f).replace(/\\/g, '/'));
-  console.log('ALL baremux files:', all);
-
-  const client = all.find(f => f.endsWith('bare.mjs'))
-    || all.find(f => f.endsWith('worker.mjs'))
-    || all.find(f => f.endsWith('.mjs') && !f.includes('epoxy'));
-  const transport = all.find(f => f.includes('epoxy') && f.endsWith('.mjs'));
-  console.log('CHOSEN client:', client, '| transport:', transport);
+  console.log('epoxy files:', epoxyFiles);
+  const transport = epoxyFiles.find(f => f.endsWith('index.mjs'))
+    || epoxyFiles.find(f => f.endsWith('.mjs'));
 
   app.get('/bmx-urls', (req, res) => {
     res.json({
-      client: client ? '/bmx/' + client : null,
-      transport: transport ? '/bmx/' + transport : null,
-      files: all
+      client: '/bmx/bare.cjs',
+      transport: transport ? '/epoxy/' + transport : null,
+      epoxyFiles
     });
   });
 
