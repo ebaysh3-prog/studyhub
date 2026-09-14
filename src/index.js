@@ -2,7 +2,8 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { uvPath } from '@titaniumnetwork-dev/ultraviolet';
 import { baremuxPath } from '@mercuryworkshop/bare-mux/node';
-import { createWisp } from 'wisp-server-node';
+import wispPkg from 'wisp-server-node';
+const { createWisp } = wispPkg;
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
