@@ -3,7 +3,6 @@ try {
   const { createServer } = await import('node:http');
   const uvMod = await import('@titaniumnetwork-dev/ultraviolet');
   const bmxMod = await import('@mercuryworkshop/bare-mux/node');
-  const epoxyMod = await import('@mercuryworkshop/epoxy-transport/path');
   const wispMod = await import('@mercuryworkshop/wisp-js');
   const path = (await import('node:path')).default;
   const fs = (await import('node:fs')).default;
@@ -11,19 +10,26 @@ try {
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+  // epoxy folder inside node_modules, found directly
+  const epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport', 'dist');
+  if (!fs.existsSync(epoxyPath)) {
+    // some versions ship without a dist folder — fall back to package root
+    epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport');
+  }
+  console.log('epoxy path:', epoxyPath, '| exists:', fs.existsSync(epoxyPath));
+
   const app = express();
   const server = createServer(app);
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
-  app.use('/epoxy/', express.static(epoxyMod.epoxyPath));
+  app.use('/epoxy/', express.static(epoxyPath));
 
-  // pick the epoxy transport file on the server — browser never guesses
-  const epoxyFiles = fs.readdirSync(epoxyMod.epoxyPath, { recursive: true })
+  const epoxyFiles = fs.readdirSync(epoxyPath, { recursive: true })
     .map(f => String(f).replace(/\\/g, '/'));
   console.log('epoxy files:', epoxyFiles);
   const transport = epoxyFiles.find(f => f.endsWith('index.mjs'))
-    || epoxyFiles.find(f => f.endsWith('.mjs'));
+    || epoxyFiles.find(f => f.endsWith('.mjs') && !f.endsWith('.d.mts'));
 
   app.get('/bmx-urls', (req, res) => {
     res.json({
