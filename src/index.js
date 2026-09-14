@@ -14,7 +14,7 @@ try {
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
-  app.use(express.static(path.join(__dirname, '..', 'static')));
+  app.use(express.static(path.join(__dirname,  'static')));
 
   server.on('upgrade', (req, socket, head) => {
     wispMod.server.routeRequest(req, socket, head);
