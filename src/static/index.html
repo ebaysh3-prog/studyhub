@@ -124,11 +124,18 @@
 <script>
 // UV initialisation — runs once on page load
 const uvReady = (async () => {
-  // Set epoxy as transport, connect to wisp server
   const conn = new BareMux.BareMuxConnection('/bmx/bare.mjs');
   await conn.setTransport('/bmx/epoxy/index.mjs', [{
     wisp: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'
   }]);
+  await navigator.serviceWorker.register('/sw.js', {
+    scope: '/'
+  });
+})();
+
+uvReady.catch(err => {
+  alert('Proxy failed to start: ' + err.message);
+});
 
   // Register the UV service worker
   await navigator.serviceWorker.register('/uv/uv.sw.js', {
