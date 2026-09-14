@@ -10,42 +10,33 @@ try {
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-  // epoxy folder inside node_modules, found directly
-  const epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport', 'dist');
+  let epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport', 'dist');
   if (!fs.existsSync(epoxyPath)) {
-    // some versions ship without a dist folder — fall back to package root
     epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport');
   }
-  console.log('epoxy path:', epoxyPath, '| exists:', fs.existsSync(epoxyPath));
 
   const app = express();
   const server = createServer(app);
+
+  // let the UV worker (served from /uv/) control the whole site
+  app.use((req, res, next) => {
+    if (req.path === '/uv/uv.sw.js') res.setHeader('Service-Worker-Allowed', '/');
+    next();
+  });
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
   app.use('/epoxy/', express.static(epoxyPath));
 
-  const epoxyFiles = fs.readdirSync(epoxyPath, { recursive: true })
-    .map(f => String(f).replace(/\\/g, '/'));
-  console.log('epoxy files:', epoxyFiles);
+  const epoxyFiles = fs.readdirSync(epoxyPath, { recursive: true }).map(f => String(f).replace(/\\/g, '/'));
   const transport = epoxyFiles.find(f => f.endsWith('index.mjs'))
     || epoxyFiles.find(f => f.endsWith('.mjs') && !f.endsWith('.d.mts'));
 
   app.get('/bmx-urls', (req, res) => {
-    res.json({
-      client: '/bmx/bare.cjs',
-      transport: transport ? '/epoxy/' + transport : null,
-      epoxyFiles
-    });
+    res.json({ client: '/bmx/bare.cjs', transport: transport ? '/epoxy/' + transport : null, epoxyFiles });
   });
 
   app.use(express.static(path.join(__dirname, 'static')));
-
-  app.get('/sw.js', (req, res) => {
-    res.setHeader('Service-Worker-Allowed', '/');
-    res.setHeader('Content-Type', 'application/javascript');
-    res.sendFile(path.join(uvMod.uvPath, 'uv.sw.js'));
-  });
 
   server.on('upgrade', (req, socket, head) => {
     wispMod.server.routeRequest(req, socket, head);
