@@ -99,63 +99,45 @@ function ensureUV() {
 
       const wisp = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/';
 
-      // pick the first transport URL that actually serves real JavaScript
-      let transport = null;
-      for (const t of info.transports) {
-        try {
-          const r = await fetch(t);
-          const ct = r.headers.get('content-type') || '';
-          if (r.ok && /javascript|ecmascript/.test(ct)) { transport = t; break; }
-          console.log('rejecting', t, r.status, ct);
-        } catch (e) { console.log('fetch fail', t, e.message); }
+      if (!info.hasBundle || !info.transport) {
+        throw new Error('Bundles missing — check Render logs for "bundled OK"');
       }
-      if (!transport) throw new Error('No valid transport file. Tried: ' + info.transports.join(', '));
+      const transport = info.transport;
       console.log('using transport:', transport);
 
       let lastErr = null;
 
-      // Path A: bundled module API (clean build, full exports)
-      if (info.hasBundle) {
-        try {
-          const mod = await import('/bmx.mjs');
-          console.log('bmx.mjs exports:', Object.keys(mod));
-          const Conn = mod.BareMuxConnection || mod.default?.BareMuxConnection;
-          const setT = mod.SetSingletonTransport || mod.SetTransport || mod.default?.SetSingletonTransport;
-          if (Conn) {
-            const conn = new Conn('/bmx/bare.cjs');
-            try { await conn.setTransport(transport, { wisp }); lastErr = null; }
-            catch (e) {
-              try { await conn.setTransport(transport, [{ wisp }]); lastErr = null; }
-              catch (e2) { lastErr = 'connection.setTransport: ' + e2.message; }
-            }
-          } else if (setT) {
-            try { await setT(transport, { wisp }); lastErr = null; }
-            catch (e) {
-              try { await setT(transport, [{ wisp }]); lastErr = null; }
-              catch (e2) { lastErr = 'module SetTransport: ' + e2.message; }
-            }
-          } else {
-            lastErr = 'bmx.mjs has no known API';
+      // bundled module API
+      try {
+        const mod = await import('/bmx.mjs');
+        console.log('bmx.mjs exports:', Object.keys(mod));
+        const Conn = mod.BareMuxConnection || mod.default?.BareMuxConnection;
+        const setT = mod.SetSingletonTransport || mod.SetTransport || mod.default?.SetSingletonTransport;
+        if (Conn) {
+          const conn = new Conn('/bmx/bare.cjs');
+          try { await conn.setTransport(transport, { wisp }); lastErr = null; }
+          catch (e) {
+            try { await conn.setTransport(transport, [{ wisp }]); lastErr = null; }
+            catch (e2) { lastErr = 'connection.setTransport: ' + e2.message; }
           }
-        } catch (e) { lastErr = 'bundle import: ' + e.message; }
-      }
+        } else if (setT) {
+          try { await setT(transport, { wisp }); lastErr = null; }
+          catch (e) {
+            try { await setT(transport, [{ wisp }]); lastErr = null; }
+            catch (e2) { lastErr = 'module SetTransport: ' + e2.message; }
+          }
+        } else {
+          lastErr = 'bmx.mjs has no known API';
+        }
+      } catch (e) { lastErr = 'bundle import: ' + e.message; }
 
-      // Path B: global API from bare.cjs script tag
+      // global fallback
       if (lastErr && window.BareMux && typeof window.BareMux.SetSingletonTransport === 'function') {
         try { await window.BareMux.SetSingletonTransport(transport, { wisp }); lastErr = null; }
         catch (e) { lastErr = 'global SetSingletonTransport: ' + e.message; }
       }
 
-      // if still failing, show the actual bytes of the transport file
-      if (lastErr) {
-        let sniff = '';
-        try {
-          const r = await fetch(transport);
-          const txt = await r.text();
-          sniff = 'status=' + r.status + ' type=' + r.headers.get('content-type') + ' start=' + JSON.stringify(txt.slice(0, 120));
-        } catch (e) { sniff = 'sniff failed: ' + e.message; }
-        throw new Error(lastErr + ' | transport file: ' + sniff);
-      }
+      if (lastErr) throw new Error(lastErr);
 
       await navigator.serviceWorker.register('/uv/uv.sw.js', { scope: '/' });
       await navigator.serviceWorker.ready;
