@@ -93,51 +93,51 @@ function ensureUV() {
       const info = await fetch('/bmx-urls').then(r => r.json());
       console.log('setup info:', info);
 
-      // clear every stale service worker + cache from earlier attempts
       try { (await navigator.serviceWorker.getRegistrations()).forEach(r => r.unregister()); } catch {}
       try { caches.keys().then(ks => ks.forEach(k => caches.delete(k))); } catch {}
 
       const wisp = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/';
+      const log = [];
+      let ok = false;
 
-      if (!info.hasBundle || !info.transport) {
-  throw new Error('Bundles missing. Server sees static dir: ' + JSON.stringify(info.staticList));
-}
-      const transport = info.transport;
-      console.log('using transport:', transport);
+      const trySet = async (label, fn) => {
+        if (ok) return;
+        try { await fn(); log.push(label + ': OK'); ok = true; }
+        catch (e) { log.push(label + ': ' + e.message); }
+      };
 
-      let lastErr = null;
-
-      // bundled module API
+      // bundled module first
       try {
         const mod = await import('/bmx.mjs');
         console.log('bmx.mjs exports:', Object.keys(mod));
+        const setT = mod.SetTransport || mod.SetSingletonTransport;
         const Conn = mod.BareMuxConnection || mod.default?.BareMuxConnection;
-        const setT = mod.SetSingletonTransport || mod.SetTransport || mod.default?.SetSingletonTransport;
-        if (Conn) {
-          const conn = new Conn('/bmx/bare.cjs');
-          try { await conn.setTransport(transport, { wisp }); lastErr = null; }
-          catch (e) {
-            try { await conn.setTransport(transport, [{ wisp }]); lastErr = null; }
-            catch (e2) { lastErr = 'connection.setTransport: ' + e2.message; }
-          }
-        } else if (setT) {
-          try { await setT(transport, { wisp }); lastErr = null; }
-          catch (e) {
-            try { await setT(transport, [{ wisp }]); lastErr = null; }
-            catch (e2) { lastErr = 'module SetTransport: ' + e2.message; }
-          }
-        } else {
-          lastErr = 'bmx.mjs has no known API';
+        if (setT) {
+          await trySet('mod.SetTransport(obj)', () => setT('/epoxy.mjs', { wisp }));
+          if (!ok) await trySet('mod.SetTransport(arr)', () => setT('/epoxy.mjs', [{ wisp }]));
         }
-      } catch (e) { lastErr = 'bundle import: ' + e.message; }
+        if (!ok && Conn) {
+          await trySet('mod.Conn(bare.cjs).setTransport(obj)', async () => {
+            const c = new Conn('/bmx/bare.cjs');
+            await c.setTransport('/epoxy.mjs', { wisp });
+          });
+        }
+      } catch (e) { log.push('bmx.mjs import: ' + e.message); }
 
-      // global fallback
-      if (lastErr && window.BareMux && typeof window.BareMux.SetSingletonTransport === 'function') {
-        try { await window.BareMux.SetSingletonTransport(transport, { wisp }); lastErr = null; }
-        catch (e) { lastErr = 'global SetSingletonTransport: ' + e.message; }
+      // globals from bare.cjs script tag
+      const BM = window.BareMux;
+      if (!ok && BM) {
+        if (typeof BM.SetTransport === 'function') {
+          await trySet('global.SetTransport(obj)', () => BM.SetTransport('/epoxy.mjs', { wisp }));
+          if (!ok) await trySet('global.SetTransport(arr)', () => BM.SetTransport('/epoxy.mjs', [{ wisp }]));
+        }
+        if (!ok && typeof BM.SetSingletonTransport === 'function') {
+          await trySet('global.SetSingletonTransport(obj)', () => BM.SetSingletonTransport('/epoxy.mjs', { wisp }));
+          if (!ok) await trySet('global.SetSingletonTransport(arr)', () => BM.SetSingletonTransport('/epoxy.mjs', [{ wisp }]));
+        }
       }
 
-      if (lastErr) throw new Error(lastErr);
+      if (!ok) throw new Error('ALL attempts failed: ' + log.join(' | '));
 
       await navigator.serviceWorker.register('/uv/uv.sw.js', { scope: '/' });
       await navigator.serviceWorker.ready;
@@ -177,6 +177,5 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') panic();
 });
 </script>
-
 </body>
 </html>
