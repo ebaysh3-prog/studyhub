@@ -97,6 +97,7 @@ function ensureUV() {
       try { caches.keys().then(ks => ks.forEach(k => caches.delete(k))); } catch {}
 
       const wisp = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/';
+      const EPX = new URL('/epoxy.mjs', location.href).href;
       const log = [];
       let ok = false;
 
