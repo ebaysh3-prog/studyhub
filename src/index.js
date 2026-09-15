@@ -14,11 +14,18 @@ try {
   if (!fs.existsSync(epoxyPath)) {
     epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport');
   }
+  const epoxyFiles = fs.readdirSync(epoxyPath, { recursive: true })
+    .map(f => String(f).replace(/\\/g, '/'));
+  const rawTransport = epoxyFiles.find(f => f.endsWith('index.mjs'))
+    || epoxyFiles.find(f => f.endsWith('.mjs') && !f.endsWith('.d.mts'));
+
+  const hasBmxBundle = fs.existsSync(path.join(__dirname, 'static', 'bmx.mjs'));
+  const hasEpoxyBundle = fs.existsSync(path.join(__dirname, 'static', 'epoxy.mjs'));
+  console.log('bundles — bmx:', hasBmxBundle, '| epoxy:', hasEpoxyBundle, '| raw:', rawTransport);
 
   const app = express();
   const server = createServer(app);
 
-  // let the UV worker (served from /uv/) control the whole site
   app.use((req, res, next) => {
     if (req.path === '/uv/uv.sw.js') res.setHeader('Service-Worker-Allowed', '/');
     next();
@@ -27,16 +34,14 @@ try {
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
   app.use('/epoxy/', express.static(epoxyPath));
-
-  const epoxyFiles = fs.readdirSync(epoxyPath, { recursive: true }).map(f => String(f).replace(/\\/g, '/'));
-  const transport = epoxyFiles.find(f => f.endsWith('index.mjs'))
-    || epoxyFiles.find(f => f.endsWith('.mjs') && !f.endsWith('.d.mts'));
+  app.use(express.static(path.join(__dirname, 'static')));
 
   app.get('/bmx-urls', (req, res) => {
-    res.json({ client: '/bmx/bare.cjs', transport: transport ? '/epoxy/' + transport : null, epoxyFiles });
+    const transports = [];
+    if (hasEpoxyBundle) transports.push('/epoxy.mjs');
+    if (rawTransport) transports.push('/epoxy/' + rawTransport);
+    res.json({ hasBundle: hasBmxBundle, transports, epoxyFiles });
   });
-
-  app.use(express.static(path.join(__dirname, 'static')));
 
   server.on('upgrade', (req, socket, head) => {
     wispMod.server.routeRequest(req, socket, head);
