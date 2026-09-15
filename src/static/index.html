@@ -98,6 +98,7 @@ function ensureUV() {
 
       const wisp = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/';
       const EPX = new URL('/epoxy.mjs', location.href).href;
+      const RAW = new URL('/rawepoxy/module.js', location.href).href;
       const log = [];
       let ok = false;
 
@@ -112,6 +113,10 @@ function ensureUV() {
         const mod = await import('/bmx.mjs');
         console.log('bmx.mjs exports:', Object.keys(mod));
         const setT = mod.SetTransport || mod.SetSingletonTransport;
+                if (setT) {
+          await trySet('mod.SetTransport(raw)', () => setT(RAW, { wisp }));
+          if (!ok) await trySet('mod.SetTransport(raw-arr)', () => setT(RAW, [{ wisp }]));
+        }
         const Conn = mod.BareMuxConnection || mod.default?.BareMuxConnection;
         if (setT) {
           await trySet('mod.SetTransport(obj)', () => setT(EPX, { wisp }));
