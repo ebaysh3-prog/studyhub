@@ -10,9 +10,15 @@ try {
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-  const hasBmx = fs.existsSync(path.join(__dirname, 'static', 'bmx.mjs'));
-  const hasEpoxy = fs.existsSync(path.join(__dirname, 'static', 'epoxy.mjs'));
-  console.log('bundles — bmx:', hasBmx, '| epoxy:', hasEpoxy);
+  // full diagnostics: what actually exists on disk
+  const bmxBundle = path.join(__dirname, 'static', 'bmx.mjs');
+  const epoxyBundle = path.join(__dirname, 'static', 'epoxy.mjs');
+  const hasBmx = fs.existsSync(bmxBundle);
+  const hasEpoxy = fs.existsSync(epoxyBundle);
+  const staticList = fs.existsSync(path.join(__dirname, 'static'))
+    ? fs.readdirSync(path.join(__dirname, 'static')) : 'NO STATIC DIR';
+  console.log('DIAG static dir contents:', staticList);
+  console.log('DIAG bmx bundle:', hasBmx, '| epoxy bundle:', hasEpoxy);
 
   const app = express();
   const server = createServer(app);
@@ -29,7 +35,8 @@ try {
   app.get('/bmx-urls', (req, res) => {
     res.json({
       hasBundle: hasBmx,
-      transport: hasEpoxy ? '/epoxy.mjs' : null
+      transport: hasEpoxy ? '/epoxy.mjs' : null,
+      staticList
     });
   });
 
