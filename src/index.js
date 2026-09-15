@@ -10,18 +10,9 @@ try {
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-  let epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport', 'dist');
-  if (!fs.existsSync(epoxyPath)) {
-    epoxyPath = path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport');
-  }
-  const epoxyFiles = fs.readdirSync(epoxyPath, { recursive: true })
-    .map(f => String(f).replace(/\\/g, '/'));
-  const rawTransport = epoxyFiles.find(f => f.endsWith('index.mjs'))
-    || epoxyFiles.find(f => f.endsWith('.mjs') && !f.endsWith('.d.mts'));
-
-  const hasBmxBundle = fs.existsSync(path.join(__dirname, 'static', 'bmx.mjs'));
-  const hasEpoxyBundle = fs.existsSync(path.join(__dirname, 'static', 'epoxy.mjs'));
-  console.log('bundles — bmx:', hasBmxBundle, '| epoxy:', hasEpoxyBundle, '| raw:', rawTransport);
+  const hasBmx = fs.existsSync(path.join(__dirname, 'static', 'bmx.mjs'));
+  const hasEpoxy = fs.existsSync(path.join(__dirname, 'static', 'epoxy.mjs'));
+  console.log('bundles — bmx:', hasBmx, '| epoxy:', hasEpoxy);
 
   const app = express();
   const server = createServer(app);
@@ -33,14 +24,13 @@ try {
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
-  app.use('/epoxy/', express.static(epoxyPath));
   app.use(express.static(path.join(__dirname, 'static')));
 
   app.get('/bmx-urls', (req, res) => {
-    const transports = [];
-    if (hasEpoxyBundle) transports.push('/epoxy.mjs');
-    if (rawTransport) transports.push('/epoxy/' + rawTransport);
-    res.json({ hasBundle: hasBmxBundle, transports, epoxyFiles });
+    res.json({
+      hasBundle: hasBmx,
+      transport: hasEpoxy ? '/epoxy.mjs' : null
+    });
   });
 
   server.on('upgrade', (req, socket, head) => {
