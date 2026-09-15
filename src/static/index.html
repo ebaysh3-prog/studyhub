@@ -100,8 +100,8 @@ function ensureUV() {
       const wisp = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/';
 
       if (!info.hasBundle || !info.transport) {
-        throw new Error('Bundles missing — check Render logs for "bundled OK"');
-      }
+  throw new Error('Bundles missing. Server sees static dir: ' + JSON.stringify(info.staticList));
+}
       const transport = info.transport;
       console.log('using transport:', transport);
 
