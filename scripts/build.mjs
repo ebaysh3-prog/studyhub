@@ -2,6 +2,9 @@ import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// server serves files from src/static — write bundles there
+const OUT = 'src/static';
+
 async function bundle(src, out) {
   try {
     if (!fs.existsSync(src)) { console.log('skip (missing):', src); return; }
@@ -20,7 +23,7 @@ async function bundle(src, out) {
 }
 
 // bare-mux browser bundle
-await bundle('node_modules/@mercuryworkshop/bare-mux/index.js', 'static/bmx.mjs');
+await bundle('node_modules/@mercuryworkshop/bare-mux/index.js', path.join(OUT, 'bmx.mjs'));
 
 // epoxy — find its real entry point from package.json
 const epoxyRoot = 'node_modules/@mercuryworkshop/epoxy-transport';
@@ -42,4 +45,4 @@ const epoxyEntry = (() => {
 })();
 
 console.log('epoxy entry:', epoxyEntry);
-if (epoxyEntry) await bundle(epoxyEntry, 'static/epoxy.mjs');
+if (epoxyEntry) await bundle(epoxyEntry, path.join(OUT, 'epoxy.mjs'));
