@@ -30,6 +30,7 @@ try {
 
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
+  app.use('/rawepoxy/', express.static(path.join(process.cwd(), 'node_modules', '@mercuryworkshop', 'epoxy-transport', 'dist')));
   app.use(express.static(path.join(__dirname, 'static')));
 
   app.get('/bmx-urls', (req, res) => {
