@@ -22,17 +22,21 @@ try {
   app.use('/bmx/', express.static(bmxMod.baremuxPath));
   app.use(express.static(path.join(__dirname, 'static')));
 
-  // worker bootstraps: bundle + config + bare-mux + epoxy(IIFE) + UV handler
   app.get('/sw.js', (req, res) => {
     res.setHeader('Service-Worker-Allowed', '/');
     res.setHeader('Content-Type', 'application/javascript');
-    const wispUrl = (req.headers['x-forwarded-proto'] === 'https' ? 'wss://' : 'wss://') + req.headers.host + '/wisp/';
     res.send(
-      "importScripts('/uv/uv.bundle.js');" +
-      "importScripts('/uv/uv.config.js');" +
-      "importScripts('/bmx/bare.cjs');" +
-      "BareMux.SetSingletonTransport('/epoxy.mjs', { wisp: '" + wispUrl + "' });" +
-      "importScripts('/uv/uv.sw.js');"
+      "self.addEventListener('error', e => console.error('[sw] error:', e.message));" +
+      "try { importScripts('/uv/uv.bundle.js'); console.log('[sw] bundle ok'); }" +
+      "catch(e) { console.error('[sw] bundle fail:', e.message); }" +
+      "try { importScripts('/uv/uv.config.js'); console.log('[sw] config ok, prefix =', self.__uv$config && self.__uv$config.prefix); }" +
+      "catch(e) { console.error('[sw] config fail:', e.message); }" +
+      "try { importScripts('/bmx/bare.cjs'); console.log('[sw] baremux ok, has SetSingletonTransport:', typeof self.BareMux !== 'undefined' && typeof self.BareMux.SetSingletonTransport); }" +
+      "catch(e) { console.error('[sw] baremux fail:', e.message); }" +
+      "try { BareMux.SetSingletonTransport('/epoxy.mjs', { wisp: 'wss://" + req.headers.host + "/wisp/' }); console.log('[sw] transport set'); }" +
+      "catch(e) { console.error('[sw] transport fail:', e.message); }" +
+      "try { importScripts('/uv/uv.sw.js'); console.log('[sw] uv handler loaded'); }" +
+      "catch(e) { console.error('[sw] uv handler fail:', e.message); }"
     );
   });
 
