@@ -20,6 +20,15 @@ try {
   });
 
   app.use('/uv/', express.static(uvMod.uvPath));
+  app.get('/sw.js', (req, res) => {
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(
+    "importScripts('/uv/uv.bundle.js');" +
+    "importScripts('/uv/uv.config.js');" +
+    "importScripts('/uv/uv.sw.js');"
+  );
+});
   app.use(express.static(path.join(__dirname, 'static')));
 
   const candidates = [
