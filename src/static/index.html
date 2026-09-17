@@ -92,7 +92,7 @@ function ensureUV() {
       try { (await navigator.serviceWorker.getRegistrations()).forEach(r => r.unregister()); } catch {}
       try { caches.keys().then(ks => ks.forEach(k => caches.delete(k))); } catch {}
 
-      await navigator.serviceWorker.register('/uv/uv.sw.js', { scope: '/' });
+      await navigator.serviceWorker.register('/sw.js', { scope: '/' });
       await navigator.serviceWorker.ready;
       console.log('UV ready (bare mode)');
     })();
