@@ -12,7 +12,7 @@ try {
   if (bareMod.default) console.log('bare default keys:', Object.keys(bareMod.default));
 
   const app = express();
-  const server = createServer(app);
+  const server = createServer();
 
   app.use((req, res, next) => {
     if (req.path === '/uv/uv.sw.js') res.setHeader('Service-Worker-Allowed', '/');
