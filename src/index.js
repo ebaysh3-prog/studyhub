@@ -2,14 +2,13 @@ try {
   const express = (await import('express')).default;
   const { createServer } = await import('node:http');
   const uvMod = await import('@titaniumnetwork-dev/ultraviolet');
+  const bmxMod = await import('@mercuryworkshop/bare-mux/node');
+  const wispMod = await import('@mercuryworkshop/wisp-js');
   const bareMod = await import('bare-server-node');
   const path = (await import('node:path')).default;
   const { fileURLToPath } = await import('node:url');
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-  console.log('bare-server-node exports:', Object.keys(bareMod));
-  if (bareMod.default) console.log('bare default keys:', Object.keys(bareMod.default));
 
   const app = express();
   const server = createServer();
@@ -20,41 +19,33 @@ try {
   });
 
   app.use('/uv/', express.static(uvMod.uvPath));
-  app.get('/sw.js', (req, res) => {
-  res.setHeader('Service-Worker-Allowed', '/');
-  res.setHeader('Content-Type', 'application/javascript');
-  res.send(
-    "importScripts('/uv/uv.bundle.js');" +
-    "importScripts('/uv/uv.config.js');" +
-    "self.addEventListener('fetch', e => {" +
-    "  console.log('[sw] saw request:', e.request.url);" +
-    "});" +
-    "importScripts('/uv/uv.sw.js');" +
-    "console.log('[sw] UV handler installed, prefix =', self.__uv$config.prefix);"
-  );
-});
+  app.use('/bmx/', express.static(bmxMod.baremuxPath));
   app.use(express.static(path.join(__dirname, 'static')));
 
-  const candidates = [
-    bareMod.createBareServer, bareMod.attachBareServer,
-    bareMod.default?.createBareServer, bareMod.default?.default, bareMod.default
-  ].filter(f => typeof f === 'function');
+  // worker bootstraps: bundle + config + bare-mux + epoxy(IIFE) + UV handler
+  app.get('/sw.js', (req, res) => {
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.setHeader('Content-Type', 'application/javascript');
+    const wispUrl = (req.headers['x-forwarded-proto'] === 'https' ? 'wss://' : 'wss://') + req.headers.host + '/wisp/';
+    res.send(
+      "importScripts('/uv/uv.bundle.js');" +
+      "importScripts('/uv/uv.config.js');" +
+      "importScripts('/bmx/bare.cjs');" +
+      "BareMux.SetSingletonTransport('/epoxy.mjs', { wisp: '" + wispUrl + "' });" +
+      "importScripts('/uv/uv.sw.js');"
+    );
+  });
 
-  if (!candidates.length) throw new Error('No bare factory. Exports: ' + Object.keys(bareMod).join(', '));
-
-  let bare = null;
-  for (const make of candidates) {
-    try {
-      const b = make('/bare/');
-      if (b && typeof b.shouldRoute === 'function') { bare = b; break; }
-    } catch (e) { console.log('factory attempt failed:', e.message); }
-  }
-  if (!bare) throw new Error('Created bare server but no shouldRoute');
-  console.log('bare server ready');
+  const bare = bareMod.createBareServer('/bare/');
 
   server.on('request', (req, res) => {
     if (bare.shouldRoute(req)) bare.routeRequest(req, res);
     else app(req, res);
+  });
+
+  server.on('upgrade', (req, socket, head) => {
+    if (bare.shouldRoute(req, socket)) bare.routeRequest(req, socket, head);
+    else wispMod.server.routeRequest(req, socket, head);
   });
 
   const PORT = process.env.PORT || 3000;
