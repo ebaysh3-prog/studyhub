@@ -8,7 +8,6 @@ try {
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-  // what does this version actually export?
   console.log('bare-server-node exports:', Object.keys(bareMod));
   if (bareMod.default) console.log('bare default keys:', Object.keys(bareMod.default));
 
@@ -23,18 +22,12 @@ try {
   app.use('/uv/', express.static(uvMod.uvPath));
   app.use(express.static(path.join(__dirname, 'static')));
 
-  // find the right factory function no matter its name
   const candidates = [
-    bareMod.createBareServer,
-    bareMod.attachBareServer,
-    bareMod.default?.createBareServer,
-    bareMod.default?.default,
-    bareMod.default
+    bareMod.createBareServer, bareMod.attachBareServer,
+    bareMod.default?.createBareServer, bareMod.default?.default, bareMod.default
   ].filter(f => typeof f === 'function');
 
-  if (!candidates.length) {
-    throw new Error('No bare factory found. Exports: ' + Object.keys(bareMod).join(', '));
-  }
+  if (!candidates.length) throw new Error('No bare factory. Exports: ' + Object.keys(bareMod).join(', '));
 
   let bare = null;
   for (const make of candidates) {
@@ -43,7 +36,7 @@ try {
       if (b && typeof b.shouldRoute === 'function') { bare = b; break; }
     } catch (e) { console.log('factory attempt failed:', e.message); }
   }
-  if (!bare) throw new Error('Created bare server but it has no shouldRoute');
+  if (!bare) throw new Error('Created bare server but no shouldRoute');
   console.log('bare server ready');
 
   server.on('request', (req, res) => {
@@ -52,3 +45,9 @@ try {
   });
 
   const PORT = process.env.PORT || 3000;
+  server.listen(PORT, () => console.log('StudyHub live on :' + PORT));
+
+} catch (err) {
+  console.error('STARTUP ERROR:', err);
+  process.exit(1);
+}
