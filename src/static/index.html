@@ -90,64 +90,12 @@ let uvReady = null;
 function ensureUV() {
   if (!uvReady) {
     uvReady = (async () => {
-      const info = await fetch('/bmx-urls').then(r => r.json());
-      console.log('setup info:', info);
-
       try { (await navigator.serviceWorker.getRegistrations()).forEach(r => r.unregister()); } catch {}
       try { caches.keys().then(ks => ks.forEach(k => caches.delete(k))); } catch {}
 
-      const wisp = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/';
-      const EPX = new URL('/epoxy.mjs', location.href).href;
-      const RAW = new URL('/rawepoxy/module.js', location.href).href;
-      const log = [];
-      let ok = false;
-
-      const trySet = async (label, fn) => {
-        if (ok) return;
-        try { await fn(); log.push(label + ': OK'); ok = true; }
-        catch (e) { log.push(label + ': ' + e.message); }
-      };
-
-      // bundled module first
-      try {
-        const mod = await import('/bmx.mjs');
-        console.log('bmx.mjs exports:', Object.keys(mod));
-        const setT = mod.SetTransport || mod.SetSingletonTransport;
-                if (setT) {
-          await trySet('mod.SetTransport(raw)', () => setT(RAW, { wisp }));
-          if (!ok) await trySet('mod.SetTransport(raw-arr)', () => setT(RAW, [{ wisp }]));
-        }
-        const Conn = mod.BareMuxConnection || mod.default?.BareMuxConnection;
-        if (setT) {
-          await trySet('mod.SetTransport(obj)', () => setT(EPX, { wisp }));
-          if (!ok) await trySet('mod.SetTransport(arr)', () => setT(EPX, [{ wisp }]));
-        }
-        if (!ok && Conn) {
-          await trySet('mod.Conn(bare.cjs).setTransport(obj)', async () => {
-            const c = new Conn('/bmx/bare.cjs');
-            await c.setTransport(EPX, { wisp });
-          });
-        }
-      } catch (e) { log.push('bmx.mjs import: ' + e.message); }
-
-      // globals from bare.cjs script tag
-      const BM = window.BareMux;
-      if (!ok && BM) {
-        if (typeof BM.SetTransport === 'function') {
-          await trySet('global.SetTransport(obj)', () => BM.SetTransport(EPX, { wisp }));
-          if (!ok) await trySet('global.SetTransport(arr)', () => BM.SetTransport(EPX, [{ wisp }]));
-        }
-        if (!ok && typeof BM.SetSingletonTransport === 'function') {
-          await trySet('global.SetSingletonTransport(obj)', () => BM.SetSingletonTransport(EPX, { wisp }));
-          if (!ok) await trySet('global.SetSingletonTransport(arr)', () => BM.SetSingletonTransport(EPX, [{ wisp }]));
-        }
-      }
-
-      if (!ok) throw new Error('ALL attempts failed: ' + log.join(' | '));
-
       await navigator.serviceWorker.register('/uv/uv.sw.js', { scope: '/' });
       await navigator.serviceWorker.ready;
-      console.log('UV ready');
+      console.log('UV ready (bare mode)');
     })();
   }
   return uvReady;
