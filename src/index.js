@@ -26,7 +26,11 @@ try {
   res.send(
     "importScripts('/uv/uv.bundle.js');" +
     "importScripts('/uv/uv.config.js');" +
-    "importScripts('/uv/uv.sw.js');"
+    "self.addEventListener('fetch', e => {" +
+    "  console.log('[sw] saw request:', e.request.url);" +
+    "});" +
+    "importScripts('/uv/uv.sw.js');" +
+    "console.log('[sw] UV handler installed, prefix =', self.__uv$config.prefix);"
   );
 });
   app.use(express.static(path.join(__dirname, 'static')));
