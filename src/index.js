@@ -6,9 +6,17 @@ try {
   const wispMod = await import('@mercuryworkshop/wisp-js');
   const bareMod = await import('bare-server-node');
   const path = (await import('node:path')).default;
+  const fs = (await import('node:fs')).default;
   const { fileURLToPath } = await import('node:url');
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+  // teach Express that .mjs and .cjs are JavaScript
+  express.static.mime.define({ 'application/javascript': ['mjs', 'cjs'] });
+
+  // prove bare-mux is really installed
+  const bareCjs = path.join(bmxMod.baremuxPath, 'bare.cjs');
+  console.log('DIAG bare.cjs exists:', fs.existsSync(bareCjs), '| path:', bmxMod.baremuxPath);
 
   const app = express();
   const server = createServer();
@@ -31,7 +39,7 @@ try {
       "catch(e) { console.error('[sw] bundle fail:', e.message); }" +
       "try { importScripts('/uv/uv.config.js'); console.log('[sw] config ok, prefix =', self.__uv$config && self.__uv$config.prefix); }" +
       "catch(e) { console.error('[sw] config fail:', e.message); }" +
-      "try { importScripts('/bmx/bare.cjs'); console.log('[sw] baremux ok, has SetSingletonTransport:', typeof self.BareMux !== 'undefined' && typeof self.BareMux.SetSingletonTransport); }" +
+      "try { importScripts('/bmx/bare.cjs'); console.log('[sw] baremux ok, SetSingletonTransport:', typeof self.BareMux !== 'undefined' && typeof self.BareMux.SetSingletonTransport); }" +
       "catch(e) { console.error('[sw] baremux fail:', e.message); }" +
       "try { BareMux.SetSingletonTransport('/epoxy.mjs', { wisp: 'wss://" + req.headers.host + "/wisp/' }); console.log('[sw] transport set'); }" +
       "catch(e) { console.error('[sw] transport fail:', e.message); }" +
